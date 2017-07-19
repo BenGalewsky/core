@@ -38,6 +38,7 @@ defmodule Core.Mixfile do
      {:gettext, "~> 0.11"},
      {:cowboy, "~> 1.0"},
      {:httpotion, "~> 3.0.2"},
+     {:poison, "~> 3.1", override: true},
      {:browser, "~> 0.1.0"},
      {:stash, "~> 1.0.0"},
      {:phoenix_live_reload, "~> 1.0", only: :dev},

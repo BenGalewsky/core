@@ -47,6 +47,9 @@ defmodule Core.Router do
     post "/unsubscribe/:candidate", SubscriptionController, :unsubscribe_candidate_post
 
     get "/entry", EntryController, :get
+
+    get "/admin/relay", RelayController, :index
+    get "/admin/relay/update", RelayController, :update
   end
 
 

@@ -33,6 +33,9 @@ config :core, [update_secret: System.get_env("UPDATE_SECRET")]
 # Redis url
 config :core, [redis_url: System.get_env("REDIS_URL")]
 
+# Relay API
+config :core, [relay_key: System.get_env("RELAY_KEY"), relay_account: System.get_env("RELAY_ACCOUNT")]
+
 # Watch static and templates for browser reloading.
 config :core, Core.Endpoint,
   live_reload: [
@@ -46,6 +49,7 @@ config :core, Core.Endpoint,
 
 # Do not include metadata nor timestamps in development logs
 config :logger, :console, format: "[$level] $message\n"
+
 
 # Set a higher stacktrace during development. Avoid configuring such
 # in production as building large stacktraces may be expensive.

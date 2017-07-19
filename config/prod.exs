@@ -22,6 +22,11 @@ config :core, Core.Endpoint,
 # Nationbuilder API Key
 config :core, [nb_slug: System.get_env("NB_SLUG"), nb_token: System.get_env("NB_TOKEN")]
 
+# Relay API
+config :core, [relay_key: System.get_env("RELAY_KEY"), relay_account: System.get_env("RELAY_ACCOUNT")]
+
+
+
 # Do not print debug messages in production
 config :logger, level: :info
 
