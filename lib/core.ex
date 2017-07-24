@@ -13,11 +13,12 @@ defmodule Core do
     # Define workers and child supervisors to be supervised
     children = [
       # Start the Ecto repository
-      # supervisor(Core.Repo, []),
+       supervisor(Core.Repo, []),
+
       # can be readded when we have a database
 
       # Start the endpoint when the application starts
-      supervisor(Core.Endpoint, []),
+      supervisor(Core.Endpoint, [])
     ]
 
     # See http://elixir-lang.org/docs/stable/elixir/Supervisor.html
