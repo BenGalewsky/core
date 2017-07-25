@@ -9,9 +9,10 @@ defmodule Relay.DownloadFSM do
   @moduledoc false
 
   defstate ready do
-    defevent start(a_campaign), data: campaign do
+    defevent start(fsm_data), data: campaign do
+      %{:campaign => a_campaign, :export_type => export_type} = fsm_data
       IO.puts("Ready to download campaiogn " <> a_campaign.name)
-      body_map = %{:data => %{:attributes => %{:export_type => "surveys"}}}
+      body_map = %{:data => %{:attributes => %{:export_type => export_type}}}
       body = Poison.encode!(body_map)
       #        request = Relay.Api.post("campaigns/#{a_campaign.campaign_id}/exports",
       #                        [body: body,
@@ -19,7 +20,7 @@ defmodule Relay.DownloadFSM do
       #                         ibrowse: [ssl_options: [server_name_indication: 'relaytxt.io']]])
 
 
-      next_state(:waiting, a_campaign)
+      next_state(:waiting, fsm_data)
     end
   end
 
@@ -30,22 +31,37 @@ defmodule Relay.DownloadFSM do
                 attributes
     end
 
-    def filter_ready_files(campaign_attributes) do
+    def filter_ready_surveys(campaign_attributes) do
+      filter_ready_files(campaign_attributes, "surveys")
+    end
+
+    def filter_ready_messages(campaign_attributes) do
+      filter_ready_files(campaign_attributes, "messages")
+    end
+
+
+    def filter_ready_files(campaign_attributes, export_type) do
         %{"status" => status,
           "export_type" => export_type,
           "inserted_at" => inserted_at } = campaign_attributes
           with {:ok, insert_at_time} <- Timex.parse(inserted_at, "{ISO:Extended:Z}") do
-            export_type == "surveys" and status == "finished"
+            export_type == export_type and status == "finished"
           end
     end
 
-    def find_downloadable_file(campaign) do
+    def find_downloadable_file(campaign, export_type) do
         response = Relay.Api.get("campaigns/#{campaign.campaign_id}/exports",
                                  [ibrowse: [ssl_options: [server_name_indication: 'relaytxt.io']]])
         bar = Poison.Parser.parse!(response.body)
+
+        filter_fun = case export_type do
+          "surveys" -> &filter_ready_surveys/1
+          "messages" -> &filter_ready_messages/1
+        end
+
         with {:ok, data} <- Map.fetch(bar, "data") do
             foo = Enum.map(data, fn(campaign) -> decompose_campaign(campaign) end)
-                  |> Enum.filter(&filter_ready_files/1)
+                  |> Enum.filter(filter_fun)
                   |> Enum.take(1)
 
             IO.inspect(foo)
@@ -62,13 +78,13 @@ defmodule Relay.DownloadFSM do
          end
     end
 
-    def check_download_ready(campaign, x) do
+    def check_download_ready(campaign, export_type, x) do
       :timer.sleep(1000)
-      case find_downloadable_file(campaign) do
+      case find_downloadable_file(campaign, export_type) do
         {:not_ready} ->
             if x > 0 do
               IO.puts("Try again")
-              check_download_ready(campaign, x-1)
+              check_download_ready(campaign, export_type, x-1)
             end
         {:ok, export_rec} ->
             IO.puts("\nFound one!")
@@ -82,12 +98,16 @@ defmodule Relay.DownloadFSM do
 
     end
 
-      defevent wait_for, data: campaign do
-        IO.puts("....waiting on "<> campaign.campaign_link)
-        case check_download_ready(campaign, 2) do
-          {:ok, export_rec} -> next_state(:downloading, export_rec)
-          {:error, msg} -> next_state(:ready, nil)
-        end
+      defevent wait_for, data: download_config do
+        IO.puts("\n\nWait For... ")
+        IO.inspect(download_config)
+
+       %{:campaign => campaign, :export_type => export_type} = download_config
+            IO.puts("....waiting on "<> campaign.campaign_link)
+            case check_download_ready(campaign, export_type, 2) do
+              {:ok, export_rec} -> next_state(:downloading, export_rec)
+              {:error, msg} -> next_state(:ready, nil)
+            end
       end
 
     end
@@ -115,14 +135,30 @@ defmodule Relay.DownloadFSM do
         end
       end
 
+      def upsert_messages(message) do
+        with {:ok, message_data} <- message,
+         {:ok, message_id} <- Map.fetch(message_data, "message_id") do
+            IO.puts("Message " <> message_id)
+            IO.inspect(message_data)
+
+        end
+      end
+
       defevent download_file, data: export_rec do
         IO.puts("Downloading file")
         IO.inspect(export_rec)
         with {:ok, url} <- Map.fetch(export_rec, "csv_url"),
+             {:ok, export_type} <- Map.fetch(export_rec, "export_type"),
              %HTTPotion.Response{ body: body, status_code: 200 } <- HTTPotion.get(url, [timeout: 30_000]) do
+                upsert_fun = case export_type do
+                    "surveys" -> &upsert_survey/1
+                    "messages" -> &upsert_messages/1
+                end
+
                 Stream.map(String.split(body, "\n"), &(&1))
                    |>CSV.decode(separator: ?,, headers: true)
-                   |>Enum.map(&upsert_survey/1)
+                   |>Enum.take(2)
+                   |>Enum.map(upsert_fun)
 
                 next_state(:ready, nil)
         end

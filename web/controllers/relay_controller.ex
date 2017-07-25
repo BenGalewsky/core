@@ -33,9 +33,12 @@ defmodule Core.RelayController do
             case campaign_id do
               "1218017917" ->
                 with {:ok, campaign} <- Core.Repo.insert(cs) do
-                    IO.inspect(campaign)
-                {:ok, pid} = Relay.DownloadServer.start_link()
-                Relay.DownloadServer.start(pid, campaign)
+#                    {:ok, pid} = Relay.DownloadServer.start_link()
+#                    Relay.DownloadServer.start(pid, %{:campaign => campaign, :export_type => "surveys"})
+
+                    {:ok, pid_msgs} = Relay.DownloadServer.start_link()
+                    Relay.DownloadServer.start(pid_msgs, %{:campaign => campaign, :export_type => "messages"})
+
                  end
               _ ->
                 IO.inspect(cs)

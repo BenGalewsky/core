@@ -4,9 +4,9 @@ defmodule Relay.DownloadServer do
 
     defstart start_link(), do: initial_state(nil)
 
-    defcast start(a_campaign) do
+    defcast start(download_config) do
       Relay.DownloadFSM.new
-      |> Relay.DownloadFSM.start(a_campaign)
+      |> Relay.DownloadFSM.start(download_config)
       |> Relay.DownloadFSM.wait_for()
       |> Relay.DownloadFSM.download_file
       |> new_state
