@@ -2,6 +2,8 @@ defmodule Relay.DownloadFSM do
   use Fsm, initial_state: :ready, initial_data: nil
   import Crontab.CronExpression
   import Timex
+  import Core.SurveyResponse
+  import Ecto.Query, only: [from: 2]
 
 
   @moduledoc false
@@ -91,30 +93,39 @@ defmodule Relay.DownloadFSM do
     end
 
     defstate downloading do
+
+      def upsert_survey(survey) do
+        with {:ok, survey_data} <- survey,
+         {survey_fields, survey_responses} <- Core.SurveyResponse.split_survey_responses(survey_data),
+         {:ok, conversation_id} <- Map.fetch(survey_fields, "conversation_id") do
+            IO.puts("existing")
+            IO.inspect(conversation_id)
+            existing = Core.Repo.get_by(Core.SurveyResponse, conversation_id: conversation_id)
+
+            changeset = case existing do
+              nil -> IO.puts("---- NOOOOOL -----")
+                     Core.SurveyResponse.changeset(%Core.SurveyResponse{}, Map.put(survey_data, "responses", survey_responses))
+
+              _ -> IO.inspect(existing)
+                   Core.SurveyResponse.changeset(existing, Map.put(survey_data, "responses", survey_responses))
+            end
+
+           changeset = Core.SurveyResponse.changeset(%Core.SurveyResponse{}, Map.put(survey_data, "responses", survey_responses))
+           Core.Repo.insert_or_update(changeset)
+        end
+      end
+
       defevent download_file, data: export_rec do
         IO.puts("Downloading file")
         IO.inspect(export_rec)
         with {:ok, url} <- Map.fetch(export_rec, "csv_url"),
              %HTTPotion.Response{ body: body, status_code: 200 } <- HTTPotion.get(url, [timeout: 30_000]) do
-                foo = Stream.map(String.split(body, "\n"), &(&1))
+                Stream.map(String.split(body, "\n"), &(&1))
                    |>CSV.decode(separator: ?,, headers: true)
-                   |>Enum.take(2)
-                IO.inspect(foo)
+                   |>Enum.map(&upsert_survey/1)
 
-                file_data = %{:export_rec => export_rec, :file_path => foo}
-                next_state(:importing, file_data)
+                next_state(:ready, nil)
         end
       end
     end
-
-    defstate importing do
-      defevent import_file, data: file_data do
-        IO.puts("File Downloaded... now lets import")
-        IO.inspect(file_data)
-
-
-      end
-    end
-
-
   end

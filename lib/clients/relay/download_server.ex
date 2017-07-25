@@ -9,7 +9,6 @@ defmodule Relay.DownloadServer do
       |> Relay.DownloadFSM.start(a_campaign)
       |> Relay.DownloadFSM.wait_for()
       |> Relay.DownloadFSM.download_file
-      |> Relay.DownloadFSM.import_file
       |> new_state
     end
 
