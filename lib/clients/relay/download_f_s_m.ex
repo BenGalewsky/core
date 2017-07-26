@@ -135,12 +135,15 @@ defmodule Relay.DownloadFSM do
         end
       end
 
-      def upsert_messages(message) do
+      def insert_new_messages(message) do
         with {:ok, message_data} <- message,
          {:ok, message_id} <- Map.fetch(message_data, "message_id") do
             IO.puts("Message " <> message_id)
-            IO.inspect(message_data)
+            existing = Core.Repo.get_by(Core.Message, message_id: message_id)
 
+            unless existing  do
+                Core.Repo.insert(Core.Message.changeset(%Core.Message{}, message_data))
+            end
         end
       end
 
@@ -152,12 +155,11 @@ defmodule Relay.DownloadFSM do
              %HTTPotion.Response{ body: body, status_code: 200 } <- HTTPotion.get(url, [timeout: 30_000]) do
                 upsert_fun = case export_type do
                     "surveys" -> &upsert_survey/1
-                    "messages" -> &upsert_messages/1
+                    "messages" -> &insert_new_messages/1
                 end
 
                 Stream.map(String.split(body, "\n"), &(&1))
                    |>CSV.decode(separator: ?,, headers: true)
-                   |>Enum.take(2)
                    |>Enum.map(upsert_fun)
 
                 next_state(:ready, nil)
