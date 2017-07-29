@@ -50,7 +50,7 @@ defmodule Core.Mixfile do
      {:timex_ecto, "~> 3.0"},
      {:fsm, "~> 0.3.0"},
      {:exactor, "~> 2.2.3", warn_missing: false},
-     {:quantum, "~> 1.9.2"},
+     {:quantum, "~> 2.0.0"},
      {:redix, ">= 0.0.0"},
      {:html_sanitize_ex, "~> 1.0.0"},
      {:geo, "~> 1.5"},

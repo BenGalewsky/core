@@ -4,6 +4,8 @@ defmodule Relay.DownloadFSM do
   import Timex
   import Core.SurveyResponse
   import Ecto.Query, only: [from: 2]
+  alias Relay.Campaigns, as: Campaigns
+
 
 
   @moduledoc false
@@ -28,88 +30,17 @@ defmodule Relay.DownloadFSM do
 
   defstate waiting do
 
-    def decompose_campaign(campaign) do
-                %{"attributes" => attributes} = campaign
-                attributes
-    end
-
-    def filter_ready_surveys(campaign_attributes) do
-      filter_ready_files(campaign_attributes, "surveys")
-    end
-
-    def filter_ready_messages(campaign_attributes) do
-      filter_ready_files(campaign_attributes, "messages")
-    end
-
-
-    def filter_ready_files(campaign_attributes, export_type) do
-        %{"status" => status,
-          "export_type" => export_type,
-          "inserted_at" => inserted_at } = campaign_attributes
-          with {:ok, insert_at_time} <- Timex.parse(inserted_at, "{ISO:Extended:Z}") do
-            export_type == export_type and status == "finished"
-          end
-    end
-
-    def find_downloadable_file(campaign, export_type) do
-        response = @relay_api.list_exports(campaign.campaign_id)
-        bar = Poison.Parser.parse!(response.body)
-
-        filter_fun = case export_type do
-          "surveys" -> &filter_ready_surveys/1
-          "messages" -> &filter_ready_messages/1
-        end
-
-        with {:ok, data} <- Map.fetch(bar, "data") do
-            foo = Enum.map(data, fn(campaign) -> decompose_campaign(campaign) end)
-                  |> Enum.filter(filter_fun)
-                  |> Enum.take(1)
-
-            IO.inspect(foo)
-            cond do
-              length(foo) == 0 ->
-                {:not_ready}
-
-              length(foo) == 1 ->
-                {:ok, List.first(foo)}
-
-               true ->
-                {:error}
-            end
-         end
-    end
-
-    def check_download_ready(campaign, export_type, x) do
-      :timer.sleep(1000)
-      case find_downloadable_file(campaign, export_type) do
-        {:not_ready} ->
-            if x > 0 do
-              IO.puts("Try again")
-              check_download_ready(campaign, export_type, x-1)
-            end
-        {:ok, export_rec} ->
-            IO.puts("\nFound one!")
-            IO.inspect(export_rec)
-            {:ok, export_rec}
-
-        _ ->
-            IO.puts("Error... nevermind")
-            {:error, "Timed out"}
-      end
-
-    end
-
       defevent wait_for, data: download_config do
         IO.puts("\n\nWait For... ")
         IO.inspect(download_config)
 
        %{:campaign => campaign, :export_type => export_type} = download_config
-            case check_download_ready(campaign, export_type, 2) do
-              {:ok, export_rec} -> next_state(:downloading, export_rec)
-              {:error, msg} -> next_state(:ready, nil)
-            end
-      end
 
+        case Campaigns.check_download_ready(campaign, export_type, 2) do
+          {:ok, export_rec} -> next_state(:downloading, export_rec)
+          {:error, msg} -> next_state(:ready, nil)
+        end
+      end
     end
 
     defstate downloading do
