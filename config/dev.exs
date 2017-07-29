@@ -36,6 +36,8 @@ config :core, [redis_url: System.get_env("REDIS_URL")]
 # Relay API
 config :core, [relay_key: System.get_env("RELAY_KEY"), relay_account: System.get_env("RELAY_ACCOUNT")]
 
+config :core, :relay_api, Relay.Api
+
 # Watch static and templates for browser reloading.
 config :core, Core.Endpoint,
   live_reload: [

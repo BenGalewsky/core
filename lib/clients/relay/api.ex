@@ -15,5 +15,22 @@ defmodule Relay.Api do
     Enum.into(hdrs, ["Authorization": "Token token=#{@relay_key}"])
   end
 
+  def list_exports(campaign_id) do
+            get("campaigns/#{campaign_id}/exports",
+                                     [ibrowse: [ssl_options: [server_name_indication: 'relaytxt.io']]])
+  end
+
+
+  def initiate_export(campaign_id, export_type) do
+    body_map = %{:data => %{:attributes => %{:export_type => export_type}}}
+    with{:ok, body} <- Poison.encode(body_map) do
+        post("campaigns/#{campaign_id}/exports",
+                [body: body,
+                 headers: ["Content-Type": "application/vnd.api+json"],
+                 ibrowse: [ssl_options: [server_name_indication: 'relaytxt.io']]])
+     end
+
+  end
+
   
 end

@@ -8,19 +8,21 @@ defmodule Relay.DownloadFSM do
 
   @moduledoc false
 
+  @relay_api Application.get_env(:core, :relay_api)
+
+
   defstate ready do
     defevent start(fsm_data), data: campaign do
       %{:campaign => a_campaign, :export_type => export_type} = fsm_data
       IO.puts("Ready to download campaiogn " <> a_campaign.name)
-      body_map = %{:data => %{:attributes => %{:export_type => export_type}}}
-      body = Poison.encode!(body_map)
-      #        request = Relay.Api.post("campaigns/#{a_campaign.campaign_id}/exports",
-      #                        [body: body,
-      #                         headers: ["Content-Type": "application/vnd.api+json"],
-      #                         ibrowse: [ssl_options: [server_name_indication: 'relaytxt.io']]])
+      response = @relay_api.initiate_export(a_campaign.campaign_id, export_type)
 
+      case response.status_code do
+        201 -> next_state(:waiting, fsm_data)
+        _ -> IO.puts("Error initiating download #{response.status_code}")
+             next_state(:ready, nil)
+      end
 
-      next_state(:waiting, fsm_data)
     end
   end
 
@@ -50,8 +52,7 @@ defmodule Relay.DownloadFSM do
     end
 
     def find_downloadable_file(campaign, export_type) do
-        response = Relay.Api.get("campaigns/#{campaign.campaign_id}/exports",
-                                 [ibrowse: [ssl_options: [server_name_indication: 'relaytxt.io']]])
+        response = @relay_api.list_exports(campaign.campaign_id)
         bar = Poison.Parser.parse!(response.body)
 
         filter_fun = case export_type do
@@ -103,7 +104,6 @@ defmodule Relay.DownloadFSM do
         IO.inspect(download_config)
 
        %{:campaign => campaign, :export_type => export_type} = download_config
-            IO.puts("....waiting on "<> campaign.campaign_link)
             case check_download_ready(campaign, export_type, 2) do
               {:ok, export_rec} -> next_state(:downloading, export_rec)
               {:error, msg} -> next_state(:ready, nil)

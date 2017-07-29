@@ -39,6 +39,7 @@ defmodule Core.RelayController do
                     {:ok, pid_msgs} = Relay.DownloadServer.start_link()
                     Relay.DownloadServer.start(pid_msgs, %{:campaign => campaign, :export_type => "messages"})
 
+
                  end
               _ ->
                 IO.inspect(cs)
