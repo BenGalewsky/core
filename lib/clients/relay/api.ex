@@ -15,6 +15,10 @@ defmodule Relay.Api do
     Enum.into(hdrs, ["Authorization": "Token token=#{@relay_key}"])
   end
 
+  def list_campaigns do
+    get("campaigns",  [ ibrowse: [ssl_options: [server_name_indication: 'relaytxt.io']]])
+  end
+
   def list_exports(campaign_id) do
             get("campaigns/#{campaign_id}/exports",
                                      [ibrowse: [ssl_options: [server_name_indication: 'relaytxt.io']]])

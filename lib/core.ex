@@ -18,7 +18,8 @@ defmodule Core do
       # can be readded when we have a database
 
       # Start the endpoint when the application starts
-      supervisor(Core.Endpoint, [])
+      supervisor(Core.Endpoint, []),
+      supervisor(Task.Supervisor, [[name: CampaignSupervisor]]),
     ]
 
     # See http://elixir-lang.org/docs/stable/elixir/Supervisor.html
