@@ -46,11 +46,10 @@ defmodule Relay.DownloadFSM do
     defstate downloading do
 
       def upsert_survey(survey) do
+      IO.inspect(survey)
         with {:ok, survey_data} <- survey,
          {survey_fields, survey_responses} <- Core.SurveyResponse.split_survey_responses(survey_data),
          {:ok, conversation_id} <- Map.fetch(survey_fields, "conversation_id") do
-            IO.puts("existing")
-            IO.inspect(conversation_id)
             existing = Core.Repo.get_by(Core.SurveyResponse, conversation_id: conversation_id)
 
             changeset = case existing do
@@ -63,6 +62,8 @@ defmodule Relay.DownloadFSM do
 
            changeset = Core.SurveyResponse.changeset(%Core.SurveyResponse{}, Map.put(survey_data, "responses", survey_responses))
            Core.Repo.insert_or_update(changeset)
+          else
+          survey_data -> IO.puts("error in survey")
         end
       end
 
@@ -80,10 +81,10 @@ defmodule Relay.DownloadFSM do
 
       defevent download_file, data: export_rec do
         IO.puts("Downloading file")
-        IO.inspect(export_rec)
+
         with {:ok, url} <- Map.fetch(export_rec, "csv_url"),
              {:ok, export_type} <- Map.fetch(export_rec, "export_type"),
-             %HTTPotion.Response{ body: body, status_code: 200 } <- HTTPotion.get(url, [timeout: 30_000]) do
+             %HTTPotion.Response{ body: body, status_code: 200 } <- @relay_api.download_csv_file(url) do
                 upsert_fun = case export_type do
                     "surveys" -> &upsert_survey/1
                     "messages" -> &insert_new_messages/1

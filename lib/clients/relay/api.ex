@@ -32,5 +32,10 @@ defmodule Relay.Api do
 
   end
 
+
+  def download_csv_file(csv_url) do
+    HTTPotion.get(csv_url, [timeout: 30_000])
+  end
+
   
 end
