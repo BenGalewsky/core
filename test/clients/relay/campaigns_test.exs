@@ -20,12 +20,12 @@ defmodule Relay.CampaignsTest do
   end
 
   test "given an export was generated within 5 minutes of query" do
-    result = Campaigns.find_downloadable_file(%{:campaign_id=>"Survey_within_five_minutes"}, "messages")
+    result = Campaigns.find_downloadable_file(%{:campaign_id=>"Survey_within_five_minutes"}, "surveys")
     assert elem(result,0) == :ok
   end
 
   test "given an export was generated more than 5 minutes of query" do
-    result = Campaigns.find_downloadable_file(%{:campaign_id=>"Survey_more_than_five_minutes"}, "messages")
+    result = Campaigns.find_downloadable_file(%{:campaign_id=>"Survey_more_than_five_minutes"}, "surveys")
     assert elem(result,0) == :not_ready
   end
 
@@ -34,4 +34,14 @@ defmodule Relay.CampaignsTest do
     assert elem(result,0) == :error
   end
 
+  def mock_fun(message) do
+    IO.inspect(message)
+  end
+
+  test "given a csv file when stream" do
+    Campaigns.stream_csv_file("""
+a,b,c
+1,2,3
+""", &mock_fun/1)
+  end
 end

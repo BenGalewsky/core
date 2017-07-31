@@ -30,7 +30,6 @@ defmodule Core.SurveyResponse do
   end
 
   def split_survey_responses(survey) do
-  IO.puts("splittttz")
     Map.split(survey, ["conversation_id", "conversation_status", "first_name", "last_name", "num_messages", "opted_out", "phone", "responses", "texter_email", "texter_first_name", "texter_last_name", "campaign_id"])
   end
 end

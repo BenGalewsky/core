@@ -11,18 +11,21 @@ defmodule Relay.DownloadFSM do
   @moduledoc false
 
   @relay_api Application.get_env(:core, :relay_api)
+  @max_retries 5
 
 
   defstate ready do
-    defevent start(fsm_data), data: campaign do
-      %{:campaign => a_campaign, :export_type => export_type} = fsm_data
+    defevent start(download_config), data: campaign do
+      %{:campaign => a_campaign, :export_type => export_type} = download_config
       IO.puts("Ready to download campaiogn " <> a_campaign.name)
       response = @relay_api.initiate_export(a_campaign.campaign_id, export_type)
 
       case response.status_code do
-        201 -> next_state(:waiting, fsm_data)
+        201 -> next_state(:waiting, download_config)
         _ -> IO.puts("Error initiating download #{response.status_code}")
-             next_state(:ready, nil)
+             next_state(:download_failed,
+                      %{:message=> "unable to initiate export",
+                        :download_config=> download_config})
       end
 
     end
@@ -36,34 +39,33 @@ defmodule Relay.DownloadFSM do
 
        %{:campaign => campaign, :export_type => export_type} = download_config
 
-        case Campaigns.check_download_ready(campaign, export_type, 2) do
+        case Campaigns.check_download_ready(campaign, export_type, @max_retries) do
           {:ok, export_rec} -> next_state(:downloading, export_rec)
-          {:error, msg} -> next_state(:ready, nil)
+          {:error, msg} -> next_state(:download_failed,
+                                        %{:message=> "Timeout waiting for file to appear for",
+                                          :download_config=> download_config})
         end
       end
     end
 
     defstate downloading do
-
       def upsert_survey(survey) do
-      IO.inspect(survey)
         with {:ok, survey_data} <- survey,
          {survey_fields, survey_responses} <- Core.SurveyResponse.split_survey_responses(survey_data),
          {:ok, conversation_id} <- Map.fetch(survey_fields, "conversation_id") do
             existing = Core.Repo.get_by(Core.SurveyResponse, conversation_id: conversation_id)
 
             changeset = case existing do
-              nil -> IO.puts("---- NOOOOOL -----")
-                     Core.SurveyResponse.changeset(%Core.SurveyResponse{}, Map.put(survey_data, "responses", survey_responses))
+              nil -> Core.SurveyResponse.changeset(%Core.SurveyResponse{}, Map.put(survey_data, "responses", survey_responses))
 
-              _ -> IO.inspect(existing)
-                   Core.SurveyResponse.changeset(existing, Map.put(survey_data, "responses", survey_responses))
+              _ ->   Core.SurveyResponse.changeset(existing, Map.put(survey_data, "responses", survey_responses))
             end
 
            changeset = Core.SurveyResponse.changeset(%Core.SurveyResponse{}, Map.put(survey_data, "responses", survey_responses))
            Core.Repo.insert_or_update(changeset)
           else
           survey_data -> IO.puts("error in survey")
+                         IO.inspect(survey_data)
         end
       end
 
@@ -94,8 +96,16 @@ defmodule Relay.DownloadFSM do
                    |>CSV.decode(separator: ?,, headers: true)
                    |>Enum.map(upsert_fun)
 
-                next_state(:ready, nil)
+                next_state(:download_complete, export_rec)
         end
       end
+    end
+
+    defstate download_complete do
+
+    end
+
+    defstate download_failed do
+
     end
   end

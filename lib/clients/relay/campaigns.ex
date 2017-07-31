@@ -63,7 +63,7 @@ defmodule Relay.Campaigns do
     end
 
     def check_download_ready(campaign, export_type, x) do
-      :timer.sleep(1000)
+      :timer.sleep(2000)
 
       case find_downloadable_file(campaign, export_type) do
         {:not_ready} ->
@@ -82,6 +82,16 @@ defmodule Relay.Campaigns do
             {:error}
       end
 
+    end
+
+    def stream_csv_file(body, upsert_fun) do
+          foo = Stream.map(String.split(body, "\n"), &(&1))
+             |>Enum.filter(fn(message) -> String.length(message) > 0 end)
+             |>CSV.decode(separator: ?,, headers: true)
+             |>Enum.map(upsert_fun)
+
+           IO.puts("at end")
+           IO.inspect(foo)
     end
   
 end

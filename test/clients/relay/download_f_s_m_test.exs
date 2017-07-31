@@ -15,7 +15,7 @@ use ExUnit.Case
       new_state = Relay.DownloadFSM.new
       |> Relay.DownloadFSM.start(%{:campaign=> %{:name=>"bad campaign", :campaign_id=> -1}, :export_type=>"surveys"})
 
-      assert new_state.state == :ready
+      assert new_state.state == :download_failed
     end
 
 @tag :do
