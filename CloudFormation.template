@@ -1,0 +1,1294 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Metadata": {
+    "AWS::CloudFormation::Interface": {
+      "ParameterGroups": [
+        {
+          "Label": {
+            "default": "RDS configuration"
+          },
+          "Parameters": [
+            "RDSDBName",
+            "RDSInstanceMasterUsername",
+            "RDSInstanceMasterPassword"
+          ]
+        },
+        {
+          "Label": {
+            "default": "EC2 configuration"
+          },
+          "Parameters": [
+            "InstanceType",
+            "SSHWhitelistedIP",
+            "SSHPublicKey"
+          ]
+        },
+        {
+          "Label": {
+            "default": "Notification configuration"
+          },
+          "Parameters": [
+            "SNSNotificationEmail"
+          ]
+        }
+      ]
+    }
+  },
+  "Parameters": {
+    "InstanceType": {
+      "Description": "WebServer EC2 instance type",
+      "Type": "String",
+      "Default": "t2.micro",
+      "AllowedValues": [
+        "t1.micro",
+        "t2.micro",
+        "t2.small",
+        "t2.medium",
+        "m1.small",
+        "m1.medium",
+        "m1.large",
+        "m1.xlarge",
+        "m2.xlarge",
+        "m2.2xlarge",
+        "m2.4xlarge",
+        "m3.medium",
+        "m3.large",
+        "m3.xlarge",
+        "m3.2xlarge",
+        "c1.medium",
+        "c1.xlarge",
+        "c3.large",
+        "c3.xlarge",
+        "c3.2xlarge",
+        "c3.4xlarge",
+        "c3.8xlarge",
+        "g2.2xlarge",
+        "r3.large",
+        "r3.xlarge",
+        "r3.2xlarge",
+        "r3.4xlarge",
+        "r3.8xlarge",
+        "i2.xlarge",
+        "i2.2xlarge",
+        "i2.4xlarge",
+        "i2.8xlarge",
+        "hi1.4xlarge",
+        "hs1.8xlarge",
+        "cr1.8xlarge",
+        "cc2.8xlarge",
+        "cg1.4xlarge"
+      ],
+      "ConstraintDescription": "must be a valid EC2 instance type."
+    },
+    "RDSDBName": {
+      "Type": "String",
+      "Description": "Name to use for RDS instance db"
+    },
+    "RDSInstanceMasterUsername": {
+      "Type": "String",
+      "Description": "Master username to use for RDS instance."
+    },
+    "RDSInstanceMasterPassword": {
+      "Type": "String",
+      "NoEcho": true,
+      "Description": "Master password to use for RDS instance."
+    },
+    "SSHPublicKey": {
+      "Type": "String",
+      "NoEcho": true,
+      "Description": "Public key to be used when accessing EC2 instances over SSH."
+    },
+    "SSHWhitelistedIP": {
+      "Type": "String",
+      "Description": "You can whitelist an IP address for SSH access to the created EC2 instances by providing it here (including network mask). eg. '109.231.193.164/32'",
+      "AllowedPattern": "^((\\d+)\\.){3}\\d+/\\d+$",
+      "ConstraintDescription": "Must be a valid IP with network mask eg '109.231.193.164/32'"
+    },
+    "SNSNotificationEmail": {
+      "Type": "String",
+      "Description": "Email address which SNS notifications regarding state of stack resources should be sent to."
+    }
+  },
+  "Resources": {
+    "VPC": {
+      "Type": "AWS::EC2::VPC",
+      "Properties": {
+        "CidrBlock": "10.0.0.0/16",
+        "InstanceTenancy": "default",
+        "EnableDnsSupport": "true",
+        "EnableDnsHostnames": "true"
+      }
+    },
+    "InternetGateway": {
+      "Type": "AWS::EC2::InternetGateway",
+      "Properties": {}
+    },
+    "VPCGatewayAttachment": {
+      "Type": "AWS::EC2::VPCGatewayAttachment",
+      "Properties": {
+        "VpcId": {
+          "Ref": "VPC"
+        },
+        "InternetGatewayId": {
+          "Ref": "InternetGateway"
+        }
+      }
+    },
+    "SubnetPrivateA": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": "10.0.128.0/19",
+        "AvailabilityZone": "us-east-1d",
+        "VpcId": {
+          "Ref": "VPC"
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "Private"
+          }
+        ]
+      }
+    },
+    "SubnetPrivateB": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": "10.0.64.0/19",
+        "AvailabilityZone": "us-east-1b",
+        "VpcId": {
+          "Ref": "VPC"
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "Private"
+          }
+        ]
+      }
+    },
+    "SubnetPrivateC": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": "10.0.0.0/19",
+        "AvailabilityZone": "us-east-1a",
+        "VpcId": {
+          "Ref": "VPC"
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "Private"
+          }
+        ]
+      }
+    },
+    "SubnetPublicA": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": "10.0.32.0/20",
+        "AvailabilityZone": "us-east-1a",
+        "VpcId": {
+          "Ref": "VPC"
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "Public"
+          }
+        ]
+      }
+    },
+    "SubnetPublicB": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": "10.0.160.0/20",
+        "AvailabilityZone": "us-east-1d",
+        "VpcId": {
+          "Ref": "VPC"
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "Public"
+          }
+        ]
+      }
+    },
+    "SubnetPublicC": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": "10.0.96.0/20",
+        "AvailabilityZone": "us-east-1b",
+        "VpcId": {
+          "Ref": "VPC"
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "Public"
+          }
+        ]
+      }
+    },
+    "RouteTable": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "VPC"
+        }
+      }
+    },
+    "Route1": {
+      "Type": "AWS::EC2::Route",
+      "Properties": {
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "RouteTableId": {
+          "Ref": "RouteTable"
+        },
+        "GatewayId": {
+          "Ref": "InternetGateway"
+        }
+      },
+      "DependsOn": "VPCGatewayAttachment"
+    },
+    "SubnetRoute1": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "RouteTable"
+        },
+        "SubnetId": {
+          "Ref": "SubnetPublicA"
+        }
+      }
+    },
+    "SubnetRoute2": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "RouteTable"
+        },
+        "SubnetId": {
+          "Ref": "SubnetPublicB"
+        }
+      }
+    },
+    "SubnetRoute3": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "RouteTable"
+        },
+        "SubnetId": {
+          "Ref": "SubnetPublicC"
+        }
+      }
+    },
+    "EIP1": {
+      "Type": "AWS::EC2::EIP",
+      "Properties": {
+        "Domain": "vpc"
+      },
+      "DependsOn": [
+        "VPC"
+      ]
+    },
+    "EIP2": {
+      "Type": "AWS::EC2::EIP",
+      "Properties": {
+        "Domain": "vpc"
+      },
+      "DependsOn": [
+        "VPC"
+      ]
+    },
+    "Instance1": {
+      "Type": "AWS::EC2::Instance",
+      "Properties": {
+        "SubnetId": {
+          "Ref": "SubnetPublicA"
+        },
+        "DisableApiTermination": "false",
+        "InstanceInitiatedShutdownBehavior": "stop",
+        "SecurityGroupIds": [
+          {
+            "Ref": "InstanceSecurityGroup"
+          }
+        ],
+        "IamInstanceProfile": {
+          "Ref": "InstanceProfile"
+        },
+        "ImageId": "ami-7d1ee76b",
+        "InstanceType": {
+          "Ref": "InstanceType"
+        },
+        "Monitoring": "false",
+        "UserData": {
+          "Fn::Base64": {
+            "Fn::Join": [
+              "\n",
+              [
+                "#cloud-config",
+                "repo_update: true",
+                "repo_upgrade: all",
+                "packages:",
+                "  - awscli",
+                "  - git",
+                "users:",
+                "  - name: console",
+                "    sudo: ALL=(ALL) NOPASSWD:ALL",
+                "    ssh-authorized-keys:",
+                {
+                  "Fn::Sub": [
+                    "      - ${SSHKey}",
+                    {
+                      "SSHKey": {
+                        "Ref": "SSHPublicKey"
+                      }
+                    }
+                  ]
+                },
+                "    shell: /bin/bash",
+                "  - name: owner",
+                "runcmd:",
+                "  - wget https://packages.erlang-solutions.com/erlang-solutions_1.0_all.deb && sudo dpkg -i erlang-solutions_1.0_all.deb",
+                "  - apt-get update",
+                "  - apt-get install -y esl-erlang=1:19.1.3",
+                "  - apt-get install -y erlang-ssl",
+                "  - apt-get install -y erlang-parsetools",
+                "  - apt-get install -y erlang-dev",
+                "  - apt-get install -y elixir=1.4.0-1",
+                "  - apt-add-repository ppa:brightbox/ruby-ng",
+                "  - apt-get update",
+                "  - apt-get install -y ruby2.0 ruby-switch",
+                {
+                  "Fn::Sub": [
+                    "  - wget https://aws-codedeploy-${Region}.s3.amazonaws.com/latest/install",
+                    {
+                      "Region": {
+                        "Ref": "AWS::Region"
+                      }
+                    }
+                  ]
+                },
+                "  - wget https://s3.amazonaws.com/aws-cloudwatch/downloads/latest/awslogs-agent-setup.py",
+                {
+                  "Fn::Sub": [
+                    "  - wget https://s3.amazonaws.com/aws-codedeploy-${Region}/cloudwatch/codedeploy_logs.conf",
+                    {
+                      "Region": {
+                        "Ref": "AWS::Region"
+                      }
+                    }
+                  ]
+                },
+                "  - chmod +x ./awslogs-agent-setup.py",
+                {
+                  "Fn::Sub": [
+                    "  - sudo python awslogs-agent-setup.py -n -r ${Region} -c s3://aws-codedeploy-${Region}/cloudwatch/awslogs.conf",
+                    {
+                      "Region": {
+                        "Ref": "AWS::Region"
+                      }
+                    }
+                  ]
+                },
+                "  - sudo mkdir -p /var/awslogs/etc/config",
+                "  - sudo cp codedeploy_logs.conf /var/awslogs/etc/config/",
+                "  - sudo service awslogs restart",
+                "  - chmod +x ./install",
+                "  - ./install auto",
+                "  - curl -sL https://deb.nodesource.com/setup_6.x | sudo -E bash -",
+                "  - apt-get install -y nodejs",
+                "  - service rsyslog restart"
+              ]
+            ]
+          }
+        }
+      },
+      "DependsOn": [
+        "InstanceSecurityGroup"
+      ]
+    },
+    "Instance2": {
+      "Type": "AWS::EC2::Instance",
+      "Properties": {
+        "SubnetId": {
+          "Ref": "SubnetPublicB"
+        },
+        "DisableApiTermination": "false",
+        "InstanceInitiatedShutdownBehavior": "stop",
+        "IamInstanceProfile": {
+          "Ref": "InstanceProfile"
+        },
+        "ImageId": "ami-7d1ee76b",
+        "InstanceType": {
+          "Ref": "InstanceType"
+        },
+        "Monitoring": "false",
+        "SecurityGroupIds": [
+          {
+            "Ref": "InstanceSecurityGroup"
+          }
+        ],
+        "UserData": {
+          "Fn::Base64": {
+            "Fn::Join": [
+              "\n",
+              [
+                "#cloud-config",
+                "repo_update: true",
+                "repo_upgrade: all",
+                "packages:",
+                "  - awscli",
+                "  - git",
+                "users:",
+                "  - name: console",
+                "    sudo: ALL=(ALL) NOPASSWD:ALL",
+                "    ssh-authorized-keys:",
+                {
+                  "Fn::Sub": [
+                    "      - ${SSHKey}",
+                    {
+                      "SSHKey": {
+                        "Ref": "SSHPublicKey"
+                      }
+                    }
+                  ]
+                },
+                "    shell: /bin/bash",
+                "  - name: owner",
+                "runcmd:",
+                "  - wget https://packages.erlang-solutions.com/erlang-solutions_1.0_all.deb && sudo dpkg -i erlang-solutions_1.0_all.deb",
+                "  - apt-get update",
+                "  - apt-get install -y esl-erlang=1:19.1.3",
+                "  - apt-get install -y erlang-ssl",
+                "  - apt-get install -y erlang-parsetools",
+                "  - apt-get install -y erlang-dev",
+                "  - apt-get install -y elixir=1.4.0-1",
+                "  - apt-add-repository ppa:brightbox/ruby-ng",
+                "  - apt-get update",
+                "  - apt-get install -y ruby2.0 ruby-switch",
+                {
+                  "Fn::Sub": [
+                    "  - wget https://aws-codedeploy-${Region}.s3.amazonaws.com/latest/install",
+                    {
+                      "Region": {
+                        "Ref": "AWS::Region"
+                      }
+                    }
+                  ]
+                },
+                "  - wget https://s3.amazonaws.com/aws-cloudwatch/downloads/latest/awslogs-agent-setup.py",
+                {
+                  "Fn::Sub": [
+                    "  - wget https://s3.amazonaws.com/aws-codedeploy-${Region}/cloudwatch/codedeploy_logs.conf",
+                    {
+                      "Region": {
+                        "Ref": "AWS::Region"
+                      }
+                    }
+                  ]
+                },
+                "  - chmod +x ./awslogs-agent-setup.py",
+                {
+                  "Fn::Sub": [
+                    "  - sudo python awslogs-agent-setup.py -n -r ${Region} -c s3://aws-codedeploy-${Region}/cloudwatch/awslogs.conf",
+                    {
+                      "Region": {
+                        "Ref": "AWS::Region"
+                      }
+                    }
+                  ]
+                },
+                "  - sudo mkdir -p /var/awslogs/etc/config",
+                "  - sudo cp codedeploy_logs.conf /var/awslogs/etc/config/",
+                "  - sudo service awslogs restart",
+                "  - chmod +x ./install",
+                "  - ./install auto",
+                "  - curl -sL https://deb.nodesource.com/setup_6.x | sudo -E bash -",
+                "  - apt-get install -y nodejs",
+                "  - service rsyslog restart"
+              ]
+            ]
+          }
+        }
+      },
+      "DependsOn": [
+        "InstanceSecurityGroup"
+      ]
+    },
+    "DefaultVPCSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "default VPC security group",
+        "VpcId": {
+          "Ref": "VPC"
+        }
+      }
+    },
+    "InstanceSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Elixir app servers",
+        "VpcId": {
+          "Ref": "VPC"
+        }
+      },
+      "DependsOn": [
+        "VPC"
+      ]
+    },
+    "RDSSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "RDS",
+        "VpcId": {
+          "Ref": "VPC"
+        }
+      },
+      "DependsOn": [
+        "VPC"
+      ]
+    },
+    "LoadBalancerSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Load balancer security group",
+        "VpcId": {
+          "Ref": "VPC"
+        }
+      }
+    },
+    "EIPAssociation1": {
+      "Type": "AWS::EC2::EIPAssociation",
+      "Properties": {
+        "AllocationId": {
+          "Fn::GetAtt": [
+            "EIP1",
+            "AllocationId"
+          ]
+        },
+        "InstanceId": {
+          "Ref": "Instance1"
+        }
+      }
+    },
+    "EIPAssociation2": {
+      "Type": "AWS::EC2::EIPAssociation",
+      "Properties": {
+        "AllocationId": {
+          "Fn::GetAtt": [
+            "EIP2",
+            "AllocationId"
+          ]
+        },
+        "InstanceId": {
+          "Ref": "Instance2"
+        }
+      }
+    },
+    "VPCIngress": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties": {
+        "GroupId": {
+          "Ref": "DefaultVPCSecurityGroup"
+        },
+        "IpProtocol": "-1",
+        "SourceSecurityGroupId": {
+          "Ref": "DefaultVPCSecurityGroup"
+        }
+      }
+    },
+    "VPCEgress": {
+      "Type": "AWS::EC2::SecurityGroupEgress",
+      "Properties": {
+        "GroupId": {
+          "Ref": "DefaultVPCSecurityGroup"
+        },
+        "IpProtocol": "-1",
+        "CidrIp": "0.0.0.0/0"
+      }
+    },
+    "InstanceIngress1": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties": {
+        "GroupId": {
+          "Ref": "InstanceSecurityGroup"
+        },
+        "IpProtocol": "tcp",
+        "FromPort": "22",
+        "ToPort": "22",
+        "CidrIp": {
+          "Ref": "SSHWhitelistedIP"
+        }
+      }
+    },
+    "InstanceIngress2": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties": {
+        "GroupId": {
+          "Ref": "InstanceSecurityGroup"
+        },
+        "IpProtocol": "tcp",
+        "FromPort": "3333",
+        "ToPort": "3333",
+        "SourceSecurityGroupId": {
+          "Ref": "LoadBalancerSecurityGroup"
+        }
+      }
+    },
+    "InstanceEgress1": {
+      "Type": "AWS::EC2::SecurityGroupEgress",
+      "Properties": {
+        "GroupId": {
+          "Ref": "InstanceSecurityGroup"
+        },
+        "IpProtocol": "-1",
+        "CidrIp": "0.0.0.0/0"
+      }
+    },
+    "LoadBalancerIngress1": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties": {
+        "GroupId": {
+          "Ref": "LoadBalancerSecurityGroup"
+        },
+        "IpProtocol": "tcp",
+        "FromPort": "80",
+        "ToPort": "80",
+        "CidrIp": "0.0.0.0/0"
+      }
+    },
+    "LoadBalancerIngress2": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties": {
+        "GroupId": {
+          "Ref": "LoadBalancerSecurityGroup"
+        },
+        "IpProtocol": "tcp",
+        "FromPort": "443",
+        "ToPort": "443",
+        "CidrIp": "0.0.0.0/0"
+      }
+    },
+    "LoadBalancerEgress1": {
+      "Type": "AWS::EC2::SecurityGroupEgress",
+      "Properties": {
+        "GroupId": {
+          "Ref": "LoadBalancerSecurityGroup"
+        },
+        "IpProtocol": "-1",
+        "CidrIp": "0.0.0.0/0"
+      }
+    },
+    "RDSIngress1": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties": {
+        "GroupId": {
+          "Ref": "RDSSecurityGroup"
+        },
+        "IpProtocol": "tcp",
+        "FromPort": "5432",
+        "ToPort": "5432",
+        "SourceSecurityGroupId": {
+          "Ref": "InstanceSecurityGroup"
+        }
+      }
+    },
+    "RDSEgress1": {
+      "Type": "AWS::EC2::SecurityGroupEgress",
+      "Properties": {
+        "GroupId": {
+          "Ref": "RDSSecurityGroup"
+        },
+        "IpProtocol": "-1",
+        "CidrIp": "0.0.0.0/0"
+      }
+    },
+    "NetworkACL": {
+      "Type": "AWS::EC2::NetworkAcl",
+      "Properties": {
+        "VpcId": {
+          "Ref": "VPC"
+        }
+      }
+    },
+    "ACLEntry1": {
+      "Type": "AWS::EC2::NetworkAclEntry",
+      "Properties": {
+        "CidrBlock": "0.0.0.0/0",
+        "Egress": "true",
+        "Protocol": "-1",
+        "RuleAction": "allow",
+        "RuleNumber": "100",
+        "NetworkAclId": {
+          "Ref": "NetworkACL"
+        }
+      }
+    },
+    "ACLEntry2": {
+      "Type": "AWS::EC2::NetworkAclEntry",
+      "Properties": {
+        "CidrBlock": "0.0.0.0/0",
+        "Protocol": "-1",
+        "RuleAction": "allow",
+        "RuleNumber": "100",
+        "NetworkAclId": {
+          "Ref": "NetworkACL"
+        }
+      }
+    },
+    "SubnetACL1": {
+      "Type": "AWS::EC2::SubnetNetworkAclAssociation",
+      "Properties": {
+        "NetworkAclId": {
+          "Ref": "NetworkACL"
+        },
+        "SubnetId": {
+          "Ref": "SubnetPublicA"
+        }
+      }
+    },
+    "SubnetACL2": {
+      "Type": "AWS::EC2::SubnetNetworkAclAssociation",
+      "Properties": {
+        "NetworkAclId": {
+          "Ref": "NetworkACL"
+        },
+        "SubnetId": {
+          "Ref": "SubnetPublicB"
+        }
+      }
+    },
+    "SubnetACL3": {
+      "Type": "AWS::EC2::SubnetNetworkAclAssociation",
+      "Properties": {
+        "NetworkAclId": {
+          "Ref": "NetworkACL"
+        },
+        "SubnetId": {
+          "Ref": "SubnetPublicC"
+        }
+      }
+    },
+    "SubnetACL4": {
+      "Type": "AWS::EC2::SubnetNetworkAclAssociation",
+      "Properties": {
+        "NetworkAclId": {
+          "Ref": "NetworkACL"
+        },
+        "SubnetId": {
+          "Ref": "SubnetPrivateA"
+        }
+      }
+    },
+    "SubnetACL5": {
+      "Type": "AWS::EC2::SubnetNetworkAclAssociation",
+      "Properties": {
+        "NetworkAclId": {
+          "Ref": "NetworkACL"
+        },
+        "SubnetId": {
+          "Ref": "SubnetPrivateB"
+        }
+      }
+    },
+    "SubnetACL6": {
+      "Type": "AWS::EC2::SubnetNetworkAclAssociation",
+      "Properties": {
+        "NetworkAclId": {
+          "Ref": "NetworkACL"
+        },
+        "SubnetId": {
+          "Ref": "SubnetPrivateC"
+        }
+      }
+    },
+    "LoadBalancer": {
+      "Type": "AWS::ElasticLoadBalancingV2::LoadBalancer",
+      "Properties": {
+        "SecurityGroups": [
+          {
+            "Ref": "LoadBalancerSecurityGroup"
+          }
+        ],
+        "LoadBalancerAttributes": [
+          {
+            "Key": "deletion_protection.enabled",
+            "Value": false
+          }
+        ],
+        "Subnets": [
+          {
+            "Ref": "SubnetPublicA"
+          },
+          {
+            "Ref": "SubnetPublicB"
+          },
+          {
+            "Ref": "SubnetPublicC"
+          }
+        ]
+      }
+    },
+    "LoadBalancerTargetGroup": {
+      "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+      "Properties": {
+        "Port": 3333,
+        "Protocol": "HTTP",
+        "VpcId": {
+          "Ref": "VPC"
+        },
+        "Targets": [
+          {
+            "Id": {
+              "Ref": "Instance1"
+            },
+            "Port": 3333
+          },
+          {
+            "Id": {
+              "Ref": "Instance2"
+            },
+            "Port": 3333
+          }
+        ],
+        "HealthCheckPath": "/status",
+        "HealthCheckProtocol": "HTTP"
+      },
+      "DependsOn": [
+        "Instance2",
+        "Instance1"
+      ]
+    },
+    "RDSInstance": {
+      "Type": "AWS::RDS::DBInstance",
+      "Properties": {
+        "AllocatedStorage": "5",
+        "AllowMajorVersionUpgrade": false,
+        "AutoMinorVersionUpgrade": true,
+        "AvailabilityZone": "us-east-1a",
+        "BackupRetentionPeriod": "7",
+        "DBInstanceClass": "db.t2.micro",
+        "DBName": {
+          "Ref": "RDSDBName"
+        },
+        "DBSubnetGroupName": {
+          "Ref": "RDSSubnetGroup"
+        },
+        "Engine": "postgres",
+        "EngineVersion": "9.6.1",
+        "MasterUsername": {
+          "Ref": "RDSInstanceMasterUsername"
+        },
+        "MasterUserPassword": {
+          "Ref": "RDSInstanceMasterPassword"
+        },
+        "MonitoringInterval": 0,
+        "MultiAZ": false,
+        "PubliclyAccessible": false,
+        "StorageEncrypted": false,
+        "StorageType": "standard",
+        "VPCSecurityGroups": [
+          {
+            "Ref": "RDSSecurityGroup"
+          }
+        ]
+      }
+    },
+    "RDSSubnetGroup": {
+      "Type": "AWS::RDS::DBSubnetGroup",
+      "Properties": {
+        "DBSubnetGroupDescription": "Subnet group for RDS instance",
+        "SubnetIds": [
+          {
+            "Ref": "SubnetPrivateA"
+          },
+          {
+            "Ref": "SubnetPrivateB"
+          },
+          {
+            "Ref": "SubnetPrivateC"
+          }
+        ]
+      }
+    },
+    "snsMonitoringTopic": {
+      "Type": "AWS::SNS::Topic",
+      "Properties": {
+        "Subscription": [
+          {
+            "Endpoint": {
+              "Ref": "SNSNotificationEmail"
+            },
+            "Protocol": "email"
+          }
+        ]
+      }
+    },
+    "elbHostCountAlaram": {
+      "Type": "AWS::CloudWatch::Alarm",
+      "Properties": {
+        "AlarmDescription": "Alert if a host dies",
+        "AlarmName": {
+          "Fn::Join": [
+            "-",
+            [
+              {
+                "Ref": "AWS::StackName"
+              },
+              "HealthyHostCount"
+            ]
+          ]
+        },
+        "ComparisonOperator": "LessThanThreshold",
+        "EvaluationPeriods": "2",
+        "MetricName": "HealthyHostCount",
+        "Namespace": "AWS/ec2",
+        "Period": "60",
+        "Statistic": "Sum",
+        "Threshold": "2",
+        "AlarmActions": [
+          {
+            "Ref": "snsMonitoringTopic"
+          }
+        ],
+        "Dimensions": [
+          {
+            "Name": "TargetGroup",
+            "Value": {
+              "Ref": "LoadBalancerTargetGroup"
+            }
+          }
+        ]
+      },
+      "DependsOn": [
+        "LoadBalancerTargetGroup",
+        "snsMonitoringTopic"
+      ]
+    },
+    "LoadBalancerListener": {
+      "Type": "AWS::ElasticLoadBalancingV2::Listener",
+      "Properties": {
+        "LoadBalancerArn": {
+          "Ref": "LoadBalancer"
+        },
+        "Port": 80,
+        "Protocol": "HTTP",
+        "DefaultActions": [
+          {
+            "TargetGroupArn": {
+              "Ref": "LoadBalancerTargetGroup"
+            },
+            "Type": "forward"
+          }
+        ]
+      },
+      "DependsOn": [
+        "LoadBalancerTargetGroup"
+      ]
+    },
+    "CodeDeployApplication": {
+      "Type": "AWS::CodeDeploy::Application",
+      "Properties": {}
+    },
+    "DeploymentGroup": {
+      "Type": "AWS::CodeDeploy::DeploymentGroup",
+      "Properties": {
+        "ApplicationName": {
+          "Ref": "CodeDeployApplication"
+        },
+        "Ec2TagFilters": [
+          {
+            "Type": "KEY_AND_VALUE",
+            "Key": "aws:cloudformation:stack-name",
+            "Value": {
+              "Ref": "AWS::StackName"
+            }
+          }
+        ],
+        "ServiceRoleArn": {
+          "Fn::GetAtt": [
+            "CodeDeployRole",
+            "Arn"
+          ]
+        }
+      }
+    },
+    "SecretsBucket": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {}
+    },
+    "S3VPCEndpoint": {
+      "Type": "AWS::EC2::VPCEndpoint",
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "s3:*"
+              ],
+              "Effect": "Allow",
+              "Resource": [
+                {
+                  "Fn::Sub": [
+                    "arn:aws:s3:::${SecretsBucket}",
+                    {
+                      "SecretsBucket": {
+                        "Ref": "SecretsBucket"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "Fn::Sub": [
+                    "arn:aws:s3:::${SecretsBucket}/*",
+                    {
+                      "SecretsBucket": {
+                        "Ref": "SecretsBucket"
+                      }
+                    }
+                  ]
+                },
+                "arn:aws:s3:::aws-codedeploy-us-east-1/*",
+                "arn:aws:s3:::aws-cloudwatch/*"
+              ],
+              "Principal": "*"
+            }
+          ]
+        },
+        "RouteTableIds": [
+          {
+            "Ref": "RouteTable"
+          }
+        ],
+        "ServiceName": {
+          "Fn::Sub": "com.amazonaws.${AWS::Region}.s3"
+        },
+        "VpcId": {
+          "Ref": "VPC"
+        }
+      }
+    },
+    "BucketPolicy": {
+      "Type": "AWS::S3::BucketPolicy",
+      "Properties": {
+        "Bucket": {
+          "Ref": "SecretsBucket"
+        },
+        "PolicyDocument": {
+          "Version": "2008-10-17",
+          "Statement": [
+            {
+              "Sid": "DenyUnEncryptedObjectUploads",
+              "Effect": "Deny",
+              "Principal": "*",
+              "Action": "s3:PutObject",
+              "Resource": {
+                "Fn::Sub": [
+                  "arn:aws:s3:::${SecretsBucket}/creds.txt",
+                  {
+                    "SecretsBucket": {
+                      "Ref": "SecretsBucket"
+                    }
+                  }
+                ]
+              },
+              "Condition": {
+                "StringNotEquals": {
+                  "s3:x-amz-server-side-encryption": "AES256"
+                }
+              }
+            },
+            {
+              "Sid": " DenyUnEncryptedInflightOperations",
+              "Effect": "Deny",
+              "Principal": "*",
+              "Action": "s3:*",
+              "Resource": {
+                "Fn::Sub": [
+                  "arn:aws:s3:::${SecretsBucket}/creds.txt",
+                  {
+                    "SecretsBucket": {
+                      "Ref": "SecretsBucket"
+                    }
+                  }
+                ]
+              },
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false"
+                }
+              }
+            },
+            {
+              "Sid": "Access-to-specific-VPCE-only",
+              "Effect": "Deny",
+              "Principal": "*",
+              "Action": [
+                "s3:GetObject",
+                "s3:PutObject",
+                "s3:DeleteObject"
+              ],
+              "Resource": {
+                "Fn::Sub": [
+                  "arn:aws:s3:::${SecretsBucket}/creds.txt",
+                  {
+                    "SecretsBucket": {
+                      "Ref": "SecretsBucket"
+                    }
+                  }
+                ]
+              },
+              "Condition": {
+                "StringNotEquals": {
+                  "aws:sourceVpce": {
+                    "Ref": "S3VPCEndpoint"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "CodeDeployRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": [
+                  "codedeploy.amazonaws.com"
+                ]
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "ManagedPolicyArns": [
+          "arn:aws:iam::aws:policy/service-role/AWSCodeDeployRole"
+        ]
+      }
+    },
+    "InstanceProfileRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "ec2.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "ManagedPolicyArns": [
+          "arn:aws:iam::aws:policy/CloudWatchFullAccess"
+        ],
+        "Policies": [
+          {
+            "PolicyName": "InstancePermissions",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Action": [
+                    "s3:*"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": [
+                    {
+                      "Fn::Sub": [
+                        "arn:aws:s3:::${SecretsBucket}",
+                        {
+                          "SecretsBucket": {
+                            "Ref": "SecretsBucket"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "Fn::Sub": [
+                        "arn:aws:s3:::${SecretsBucket}/*",
+                        {
+                          "SecretsBucket": {
+                            "Ref": "SecretsBucket"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "InstanceProfile": {
+      "Type": "AWS::IAM::InstanceProfile",
+      "Properties": {
+        "Roles": [
+          {
+            "Ref": "InstanceProfileRole"
+          }
+        ]
+      }
+    }
+  },
+  "Description": "Load balanced stack with 2 instances, CodeDeploy.",
+  "Outputs": {
+    "RDSHost": {
+      "Description": "Hostname of created RDS resource, to be used during app compilation",
+      "Value": {
+        "Fn::GetAtt": [
+          "RDSInstance",
+          "Endpoint.Address"
+        ]
+      }
+    },
+    "BucketName": {
+      "Description": "Name of created S3 bucket, to be used during app compilation",
+      "Value": {
+        "Ref": "SecretsBucket"
+      }
+    },
+    "LoadBalancerDNS": {
+      "Description": "Public DNS for created load balancer",
+      "Value": {
+        "Fn::GetAtt": [
+          "LoadBalancer",
+          "DNSName"
+        ]
+      }
+    },
+    "Instance1DNS": {
+      "Description": "Public DNS for first EC2 instance",
+      "Value": {
+        "Fn::GetAtt": [
+          "Instance1",
+          "PublicDnsName"
+        ]
+      }
+    },
+    "Instance2DNS": {
+      "Description": "Public DNS for second EC2 instance",
+      "Value": {
+        "Fn::GetAtt": [
+          "Instance2",
+          "PublicDnsName"
+        ]
+      }
+    }
+  }
+}

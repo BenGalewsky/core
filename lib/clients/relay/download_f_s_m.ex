@@ -16,8 +16,10 @@ defmodule Relay.DownloadFSM do
 
   defstate ready do
     defevent start(download_config), data: campaign do
-      %{:campaign => a_campaign, :export_type => export_type} = download_config
+      %{:campaign => a_campaign, :export_type => export_type, :job => job} = download_config
       IO.puts("Ready to download campaiogn " <> a_campaign.name)
+      task_save = Relay.TaskLogger.log_task_event(job, a_campaign, "Starting")
+      IO.inspect(task_save)
       response = @relay_api.initiate_export(a_campaign.campaign_id, export_type)
 
       case response.status_code do
@@ -92,9 +94,7 @@ defmodule Relay.DownloadFSM do
                     "messages" -> &insert_new_messages/1
                 end
 
-                Stream.map(String.split(body, "\n"), &(&1))
-                   |>CSV.decode(separator: ?,, headers: true)
-                   |>Enum.map(upsert_fun)
+#                Campaigns.stream_csv_file(upsert_fun)
 
                 next_state(:download_complete, export_rec)
         end
